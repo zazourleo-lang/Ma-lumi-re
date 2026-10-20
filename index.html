@@ -55,13 +55,14 @@ nav button b{display:block;font-size:22px}nav button.on{color:var(--tx)}nav butt
 let tab='sol',view='list',cur=null,cf=null,groups=[];
 try{groups=JSON.parse(localStorage.getItem('ml_groups')||'[]')}catch(e){groups=[]}
 function save(){try{localStorage.setItem('ml_groups',JSON.stringify(groups))}catch(e){}}
+groups.forEach(g=>{g.members=g.members.map(m=>{const r=splitPhone(m);if(!r)return m;(g.phones=g.phones||{})[r[0]]=r[1];if(g.pay)for(const k in g.pay){const q=k.split('|');if(q.slice(2).join('|')===m){delete g.pay[k];g.pay[q[0]+'|'+q[1]+'|'+r[0]]=1;}}return r[0];});});save();
 const $=s=>document.querySelector(s),app=$('#app');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Math.round(n).toLocaleString('fr-FR')+' HTG';
 const today=()=>new Date().toISOString().slice(0,10);
 const CL={jour:'chaque jour',semaine:'chaque semaine',cycle:'une fois par cycle'};
 const WD=['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-function dt(g,i){const d=new Date((g.start||today())+'T12:00:00');if(g.freq==='mois')d.setMonth(d.getMonth()+i);else d.setDate(d.getDate()+i*(g.freq==='semaine'?7:15));return d;}
+function dt(g,i){const d=new Date((g.start||today())+'T12:00:00');d.setDate(d.getDate()+i*(g.freq==='semaine'?7:g.freq==='quinzaine'?15:30));return d;}
 const fd=d=>d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 function cols(g,i){
   const s=dt(g,i),days=Math.round((dt(g,i+1)-s)/864e5),out=[];
@@ -74,7 +75,17 @@ const P=g=>g.pay||(g.pay={});
 const SIPO='50941444209';
 function sipo(){return '<a class="wa" style="display:block;text-align:center;margin-top:14px;padding:14px" href="https://wa.me/'+SIPO+'?text='+encodeURIComponent('Bonjour, j’ai besoin d’aide avec Ma Lumière 🙏')+'" target="_blank" rel="noopener">💬 Sipò : écris-nous sur WhatsApp</a>';}
 const dig=p=>{let d=String(p||'').replace(/\D/g,'');if(d.length===8)d='509'+d;return d;};
-function waLink(g,m,lbl){const t='Bonjour '+m+', petit rappel pour le sòl « '+g.name+' » : ton versement de '+fmt(g.amt)+' ('+lbl+') n’a pas encore été noté. Merci de passer payer 🙏 — Ma Lumière';return 'https://wa.me/'+dig((g.phones||{})[m])+'?text='+encodeURIComponent(t);}
+function waLink(g,m,n){const t='Bonjour '+m+', petit rappel pour le sòl « '+g.name+' » : il te manque '+n+' versement'+(n>1?'s':'')+' de '+fmt(g.amt)+'. Merci de passer payer 🙏 — Ma Lumière';return 'https://wa.me/'+dig((g.phones||{})[m])+'?text='+encodeURIComponent(t);}
+function remind(g,o,pay,now){
+  if(!o.cs.some(c=>c.d<=now))return '';
+  const late=g.members.map(m=>({m,n:o.cs.filter((c,ci)=>c.d<=now&&!pay[key(o.i,ci,m)]).length})).filter(x=>x.n>0);
+  let h='<div class="card"><b>📲 Rappeler ceux qui n’ont pas payé</b>';
+  if(!late.length)return h+'<div class="mu" style="margin-top:8px">✅ Tout le monde est à jour.</div></div>';
+  h+='<div class="mu">Appuie sur le bouton vert : WhatsApp s’ouvre avec le message déjà écrit.</div>';
+  late.forEach(x=>{const has=(g.phones||{})[x.m];h+=`<div class="row" style="margin-top:10px"><span><b>${esc(x.m)}</b><br><span class="mu">${x.n} versement${x.n>1?'s':''} manquant${x.n>1?'s':''}</span></span><span>${has?'':`<button class="s" style="padding:8px 12px" data-act="ph" data-m="${esc(x.m)}">＋ numéro</button> `}<a class="wa" href="${waLink(g,x.m,x.n)}" target="_blank" rel="noopener">📲 Rappeler</a></span></div>`;});
+  return h+'</div>';
+}
+function splitPhone(s){const m=String(s).match(/^(.*?)[\s,;:\-]*(\+?\d[\d\s.\-]{6,}\d)$/);return m&&m[1].trim()?[m[1].trim(),m[2].trim()]:null;}
 const key=(i,c,m)=>i+'|'+c+'|'+m;
 function info(g){
   const n=g.members.length,done=g.round>=n,i=Math.min(g.round,n-1),cs=cols(g,i),k=cs.length,pay=P(g);
@@ -104,7 +115,7 @@ function renderNew(){
   <label>Nom du sòl</label><input id="n" placeholder="Ex : Sòl de la famille">
   <label>Montant que chacun donne à chaque versement (HTG)</label><input id="a" type="number" inputmode="numeric" placeholder="Ex : 500">
   <label>Chacun donne…</label><select id="c"><option value="jour">chaque jour</option><option value="semaine">chaque semaine</option><option value="cycle">une seule fois par cycle</option></select>
-  <label>Un membre reçoit tous les…</label><select id="f"><option value="semaine">semaine</option><option value="quinzaine">quinzaine</option><option value="mois">mois</option></select>
+  <label>Un membre reçoit tous les…</label><select id="f"><option value="semaine">semaine</option><option value="quinzaine">quinzaine</option><option value="mois">mois (30 jours)</option></select>
   <label>Date de début (le premier jour de versement)</label><input id="d" type="date" value="${today()}">
   <label>Membres, dans l’ordre de réception (un par ligne : Nom, numéro WhatsApp — le numéro est facultatif)</label><textarea id="m" rows="6" placeholder="Jacques, 3700 1122&#10;Lucie, 3811 2233&#10;Pierre"></textarea>
   <div id="err" class="mu" style="color:#d33;margin-bottom:8px"></div>
@@ -112,7 +123,7 @@ function renderNew(){
 }
 function renderDet(){
   const g=groups.find(x=>x.id===cur);if(!g){view='list';return render();}
-  const o=info(g),pay=P(g),now=new Date();
+  const o=info(g),pay=P(g),now=new Date();now.setHours(23,59,59,0);
   let h=`<button class="s" data-act="back">← Retour</button><div class="card"><div class="row"><b style="font-size:18px">${esc(g.name)}</b><span class="chip">${o.done?'Terminé':'Tour '+(g.round+1)+'/'+o.n}</span></div>
   <div class="mu">Chacun donne ${fmt(g.amt)} ${CL[g.cot]}</div>`;
   if(o.done)h+='<div class="big" style="margin-top:12px">Sòl terminé 🎉</div></div>';
@@ -120,14 +131,6 @@ function renderDet(){
     h+=`<div class="mu" style="margin-top:12px">${esc(o.r)} reçoit 🎁</div><div class="big">${fmt(o.pot)}</div><div class="mu">le ${o.end}</div>
     <div class="mu" style="margin-top:6px">Chacun verse ${fmt(o.per)} en tout sur ce tour</div>
     <div class="bar"><i style="width:${o.pd/o.tot*100}%"></i></div><div class="mu" style="margin-top:4px">${o.pd}/${o.tot} versements faits</div>`;
-    let last=-1;o.cs.forEach((c,ci)=>{if(c.d<=now)last=ci;});
-    if(last>=0){const miss=g.members.filter(m=>!pay[key(o.i,last,m)]);
-      const lb=o.cs[last].l.replace('<br>',' ');
-      if(!miss.length)h+=`<div class="late">✅ Tout le monde a payé (${lb})</div>`;
-      else{h+=`<div class="late"><b>Pas encore payé</b> (${lb})`;
-        miss.forEach(m=>{const has=(g.phones||{})[m],lk=waLink(g,m,lb);
-          h+=`<div class="row" style="margin-top:8px"><span>${esc(m)}</span><span>${has?'':`<button class="s" style="padding:8px 12px" data-act="ph" data-m="${esc(m)}">＋ numéro</button> `}<a class="wa" href="${lk}" target="_blank" rel="noopener">📲 Rappeler</a></span></div>`;});
-        h+='</div>';}}
     h+='</div><div class="card"><b>Tableau des versements</b><div class="mu">Appuie sur une case pour marquer ✓ payé</div><div class="sc"><table><thead><tr><th class="stk">Membre</th>'+o.cs.map(c=>'<th>'+c.l+'</th>').join('')+'<th>Total</th></tr></thead><tbody>';
     g.members.forEach((m,mi)=>{let cnt=0;
       h+=`<tr><td class="stk">${esc(m)}${m===o.r?' 🎁':''}</td>`;
@@ -135,6 +138,7 @@ function renderDet(){
         h+=`<td class="c" data-act="tg" data-m="${mi}" data-c="${ci}">${ok?'<span class="ok">✓</span>':c.d<=now?'<span class="no">✗</span>':'<span class="fu">·</span>'}</td>`;});
       h+=`<td><b>${cnt}/${o.k}</b></td></tr>`;});
     h+='<tr>'+'<td class="stk fu">Payés</td>'+o.cs.map((c,ci)=>'<td class="fu">'+g.members.filter(m=>pay[key(o.i,ci,m)]).length+'/'+o.n+'</td>').join('')+'<td></td></tr></tbody></table></div></div>';
+    h+=remind(g,o,pay,now);
   }
   h+='<div class="card"><b>Qui touche et quand ?</b><div class="sc"><table><thead><tr><th class="stk">Membre</th><th>Jour de réception</th><th>Montant</th></tr></thead><tbody>';
   g.members.forEach((m,i)=>{const cl=i===g.round&&!o.done?'now':i<g.round?'past':'',a=g.amt*cols(g,i).length*o.n;
@@ -156,7 +160,7 @@ document.addEventListener('click',e=>{
   else if(a==='back'){view='list';cf=null;}
   else if(a==='open'){cur=b.dataset.id;view='det';cf=null;}
   else if(a==='create'){
-    const name=$('#n').value.trim(),amt=+$('#a').value,rows=$('#m').value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const i=s.indexOf(',');return i<0?[s,'']:[s.slice(0,i).trim(),s.slice(i+1).trim()];}).filter(r=>r[0]),mem=rows.map(r=>r[0]),phones={};rows.forEach(r=>{if(r[1])phones[r[0]]=r[1];});
+    const name=$('#n').value.trim(),amt=+$('#a').value,rows=$('#m').value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const i=s.indexOf(',');return i>=0?[s.slice(0,i).trim(),s.slice(i+1).trim()]:(splitPhone(s)||[s,'']);}).filter(r=>r[0]),mem=rows.map(r=>r[0]),phones={};rows.forEach(r=>{if(r[1])phones[r[0]]=r[1];});
     if(!name||!(amt>0)||mem.length<2){$('#err').textContent='Mets un nom, un montant, et au moins 2 membres.';return;}
     groups.unshift({id:String(Date.now()),name,amt,cot:$('#c').value,freq:$('#f').value,start:$('#d').value||today(),members:mem,phones,round:0,pay:{}});save();view='list';
   }

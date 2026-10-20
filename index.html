@@ -39,6 +39,7 @@ nav button{flex:1;background:transparent;color:var(--mu);font-size:12px;padding:
 nav button b{display:block;font-size:22px}nav button.on{color:var(--tx)}nav button.on span{border-bottom:3px solid var(--ac)}
 .soon{text-align:center;padding:40px 10px}.soon .e{font-size:48px}
 .warn{background:#d3331a22;border:1px solid #d33;border-radius:12px;padding:12px;margin:10px 0}
+.wa{display:inline-block;padding:8px 12px;border-radius:12px;background:#25d366;color:#fff;font-weight:700;text-decoration:none;font-size:14px}
 .late{background:#d3331a18;border-radius:12px;padding:10px;margin-top:10px;font-size:14px}
 </style>
 </head>
@@ -70,6 +71,10 @@ function cols(g,i){
   return out;
 }
 const P=g=>g.pay||(g.pay={});
+const SIPO='50941444209';
+function sipo(){return '<a class="wa" style="display:block;text-align:center;margin-top:14px;padding:14px" href="https://wa.me/'+SIPO+'?text='+encodeURIComponent('Bonjour, j’ai besoin d’aide avec Ma Lumière 🙏')+'" target="_blank" rel="noopener">💬 Sipò : écris-nous sur WhatsApp</a>';}
+const dig=p=>{let d=String(p||'').replace(/\D/g,'');if(d.length===8)d='509'+d;return d;};
+function waLink(g,m,lbl){const t='Bonjour '+m+', petit rappel pour le sòl « '+g.name+' » : ton versement de '+fmt(g.amt)+' ('+lbl+') n’a pas encore été noté. Merci de passer payer 🙏 — Ma Lumière';return 'https://wa.me/'+dig((g.phones||{})[m])+'?text='+encodeURIComponent(t);}
 const key=(i,c,m)=>i+'|'+c+'|'+m;
 function info(g){
   const n=g.members.length,done=g.round>=n,i=Math.min(g.round,n-1),cs=cols(g,i),k=cs.length,pay=P(g);
@@ -91,6 +96,7 @@ function renderList(){
     h+=`<div class="card" data-act="open" data-id="${g.id}"><div class="row"><b>${esc(g.name)}</b><span class="chip">${o.done?'Terminé':'Tour '+(g.round+1)+'/'+o.n}</span></div>
     <div class="mu">${fmt(g.amt)} ${CL[g.cot]||''} • ${o.n} membres</div>`+
     (o.done?'<div class="mu" style="margin-top:6px">Tous les membres ont reçu 🎉</div>':`<div class="mu" style="margin-top:6px"><b style="color:var(--tx)">${esc(o.r)}</b> reçoit ${fmt(o.pot)} le ${o.end}</div><div class="bar"><i style="width:${o.pd/o.tot*100}%"></i></div>`)+`</div>`;});
+  h+=sipo();
   app.innerHTML=h;
 }
 function renderNew(){
@@ -100,7 +106,7 @@ function renderNew(){
   <label>Chacun donne…</label><select id="c"><option value="jour">chaque jour</option><option value="semaine">chaque semaine</option><option value="cycle">une seule fois par cycle</option></select>
   <label>Un membre reçoit tous les…</label><select id="f"><option value="semaine">semaine</option><option value="quinzaine">quinzaine</option><option value="mois">mois</option></select>
   <label>Date de début (le premier jour de versement)</label><input id="d" type="date" value="${today()}">
-  <label>Membres (un nom par ligne, dans l’ordre de réception)</label><textarea id="m" rows="6" placeholder="Jacques&#10;Lucie&#10;Pierre&#10;Louis&#10;Jean"></textarea>
+  <label>Membres, dans l’ordre de réception (un par ligne : Nom, numéro WhatsApp — le numéro est facultatif)</label><textarea id="m" rows="6" placeholder="Jacques, 3700 1122&#10;Lucie, 3811 2233&#10;Pierre"></textarea>
   <div id="err" class="mu" style="color:#d33;margin-bottom:8px"></div>
   <button class="w" data-act="create">Créer le sòl</button><button class="s w" style="margin-top:8px" data-act="back">Annuler</button>`;
 }
@@ -116,7 +122,12 @@ function renderDet(){
     <div class="bar"><i style="width:${o.pd/o.tot*100}%"></i></div><div class="mu" style="margin-top:4px">${o.pd}/${o.tot} versements faits</div>`;
     let last=-1;o.cs.forEach((c,ci)=>{if(c.d<=now)last=ci;});
     if(last>=0){const miss=g.members.filter(m=>!pay[key(o.i,last,m)]);
-      h+=`<div class="late">${miss.length?'<b>Pas encore payé</b> ('+o.cs[last].l.replace('<br>',' ')+') : '+miss.map(esc).join(', '):'✅ Tout le monde a payé ('+o.cs[last].l.replace('<br>',' ')+')'}</div>`;}
+      const lb=o.cs[last].l.replace('<br>',' ');
+      if(!miss.length)h+=`<div class="late">✅ Tout le monde a payé (${lb})</div>`;
+      else{h+=`<div class="late"><b>Pas encore payé</b> (${lb})`;
+        miss.forEach(m=>{const has=(g.phones||{})[m],lk=waLink(g,m,lb);
+          h+=`<div class="row" style="margin-top:8px"><span>${esc(m)}</span><span>${has?'':`<button class="s" style="padding:8px 12px" data-act="ph" data-m="${esc(m)}">＋ numéro</button> `}<a class="wa" href="${lk}" target="_blank" rel="noopener">📲 Rappeler</a></span></div>`;});
+        h+='</div>';}}
     h+='</div><div class="card"><b>Tableau des versements</b><div class="mu">Appuie sur une case pour marquer ✓ payé</div><div class="sc"><table><thead><tr><th class="stk">Membre</th>'+o.cs.map(c=>'<th>'+c.l+'</th>').join('')+'<th>Total</th></tr></thead><tbody>';
     g.members.forEach((m,mi)=>{let cnt=0;
       h+=`<tr><td class="stk">${esc(m)}${m===o.r?' 🎁':''}</td>`;
@@ -134,7 +145,7 @@ function renderDet(){
     else h+=`<button class="w" data-act="next">${o.pd>=o.tot?'Tour terminé → suivant':'Passer au tour suivant'}</button>`;}
   if(cf==='del')h+=`<div class="warn">Supprimer ce sòl pour toujours ?<div class="row" style="margin-top:10px"><button class="d" data-act="del2">Oui, supprimer</button><button class="s" data-act="no">Non</button></div></div>`;
   else h+='<button class="s w" style="margin-top:8px" data-act="del">Supprimer ce sòl</button>';
-  h+='<p class="mu" style="text-align:center">Ma Lumière note les versements. L’argent reste entre vous, par MonCash, NatCash ou en main propre.</p>';
+  h+=sipo();h+='<p class="mu" style="text-align:center">Ma Lumière note les versements. L’argent reste entre vous, par MonCash, NatCash ou en main propre.</p>';
   app.innerHTML=h;
 }
 document.addEventListener('click',e=>{
@@ -145,15 +156,16 @@ document.addEventListener('click',e=>{
   else if(a==='back'){view='list';cf=null;}
   else if(a==='open'){cur=b.dataset.id;view='det';cf=null;}
   else if(a==='create'){
-    const name=$('#n').value.trim(),amt=+$('#a').value,mem=$('#m').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    const name=$('#n').value.trim(),amt=+$('#a').value,rows=$('#m').value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const i=s.indexOf(',');return i<0?[s,'']:[s.slice(0,i).trim(),s.slice(i+1).trim()];}).filter(r=>r[0]),mem=rows.map(r=>r[0]),phones={};rows.forEach(r=>{if(r[1])phones[r[0]]=r[1];});
     if(!name||!(amt>0)||mem.length<2){$('#err').textContent='Mets un nom, un montant, et au moins 2 membres.';return;}
-    groups.unshift({id:String(Date.now()),name,amt,cot:$('#c').value,freq:$('#f').value,start:$('#d').value||today(),members:mem,round:0,pay:{}});save();view='list';
+    groups.unshift({id:String(Date.now()),name,amt,cot:$('#c').value,freq:$('#f').value,start:$('#d').value||today(),members:mem,phones,round:0,pay:{}});save();view='list';
   }
   else if(a==='tg'){const o=info(g),k=key(o.i,+b.dataset.c,g.members[+b.dataset.m]),p=P(g);if(p[k])delete p[k];else p[k]=1;save();}
   else if(a==='next'){if(info(g).pd>=info(g).tot){g.round++;save();}else cf='next';}
   else if(a==='next2'){g.round++;save();cf=null;}
   else if(a==='del'){cf='del';}
   else if(a==='del2'){groups=groups.filter(x=>x.id!==cur);save();view='list';cf=null;}
+  else if(a==='ph'){const n=b.dataset.m,v=prompt('Numéro WhatsApp de '+n+' :');if(v&&v.trim()){(g.phones=g.phones||{})[n]=v.trim();save();}}
   else if(a==='no'){cf=null;}
   render();
   if(a==='tg'){const n=app.querySelector('.sc');if(n)n.scrollLeft=sl;}
